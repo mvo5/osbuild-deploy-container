@@ -2,6 +2,8 @@ module github.com/osbuild/osbuild-deploy-container/odc
 
 go 1.19
 
+replace github.com/osbuild/images => github.com/mvo5/images v0.0.0-20231129163224-929f49b681c4
+
 require (
 	github.com/osbuild/images v0.20.0
 	github.com/spf13/cobra v1.8.0
