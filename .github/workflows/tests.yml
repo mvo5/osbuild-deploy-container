@@ -56,3 +56,23 @@ jobs:
         # don't check /etc/os-release sourcing, allow useless cats to live inside our codebase, and
         # allow seemingly unreachable commands
         SHELLCHECK_OPTS: -e SC1091 -e SC2002 -e SC2317
+
+  integration:
+    # TODO: run this also via tmt/testing-farm
+    name: "Integration"
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+    - name: Setup up python
+      uses: actions/setup-python@v4
+    - name: Install test dependencies
+      run: |
+        sudo apt install -y podman python3-pytest flake8
+    - name: Run tests
+      run: |
+        # for some reason GH runners keep the environment with sudo
+        # but that breaks podman because XDG_RUNTIME_DIR then points
+        # to /run/user/1001
+        sudo -E XDG_RUNTIME_DIR= pytest-3 -s -vv
