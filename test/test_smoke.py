@@ -38,10 +38,12 @@ def config_json_fixture(output_path):
 
 @pytest.mark.skipif(os.getuid() != 0, reason="needs root")
 @pytest.mark.skipif(not testutil.has_executable("podman"), reason="need podman")
-def test_smoke(output_path, config_json):
+@pytest.mark.parametrize("arch", ["arm64", "amd64"])
+def test_smoke(output_path, config_json, arch):
     # build local container
     subprocess.check_call([
         "podman", "build",
+        "--arch", arch,
         "-f", "Containerfile",
         "-t", "osbuild-deploy-container-test",
     ])
@@ -49,6 +51,7 @@ def test_smoke(output_path, config_json):
     # and run container to deploy an image into output/disk.qcow2
     subprocess.check_call([
         "podman", "run", "--rm",
+        "--arch", arch,
         "--privileged",
         "--security-opt", "label=type:unconfined_t",
         "-v", f"{output_path}:/output",

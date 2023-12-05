@@ -71,6 +71,9 @@ jobs:
     - name: Install test dependencies
       run: |
         sudo apt install -y podman python3-pytest flake8
+    - name: Install qemu for cross build
+      run: |
+        sudo apt install -y qemu-user-static
     - name: Run tests
       run: |
         # for some reason GH runners keep the environment with sudo
