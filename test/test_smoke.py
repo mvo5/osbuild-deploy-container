@@ -65,6 +65,8 @@ def test_smoke(output_path, config_json):
     generated_img = pathlib.Path(output_path) / "qcow2/disk.qcow2"
     assert generated_img.exists(), f"output file missing, dir content: {os.listdir(os.fspath(output_path))}"
     with VM(generated_img) as test_vm:
-        # TODO: replace with 'test_vm.run("true")' once user creation via
-        #       blueprints works
-        test_vm.wait_ssh_ready()
+        exit_status, _ = test_vm.run("true", user="test", password="password")
+        assert exit_status == 0
+        exit_status, output = test_vm.run("echo hello")
+        assert exit_status == 0
+        assert output == "hello"
