@@ -12,6 +12,12 @@ require (
 	github.com/stretchr/testify v1.8.4
 )
 
+replace (
+	//github.com/osbuild/images => github.com/mvo5/images v0.0.0-20240103123559-871ac2e47e9b
+
+	github.com/osbuild/images => /home/mvogt/devel/osbuild/images
+)
+
 require (
 	github.com/BurntSushi/toml v1.3.2 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
