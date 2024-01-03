@@ -11,16 +11,12 @@ import (
 	"github.com/osbuild/images/pkg/arch"
 	"github.com/osbuild/images/pkg/blueprint"
 	"github.com/osbuild/images/pkg/container"
-	"github.com/osbuild/images/pkg/dnfjson"
 	"github.com/osbuild/images/pkg/manifest"
 	"github.com/osbuild/images/pkg/osbuild"
 	"github.com/osbuild/images/pkg/rpmmd"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
-
-//go:embed fedora-eln.json
-var reposStr string
 
 const (
 	distroName       = "fedora-39"
@@ -71,21 +67,6 @@ func canChownInPath(path string) (bool, error) {
 	return checkFile.Chown(osGetuid(), osGetgid()) == nil, nil
 }
 
-// Parse embedded repositories and return repo configs for the given
-// architecture.
-func loadRepos(archName string) []rpmmd.RepoConfig {
-	var repoData map[string][]rpmmd.RepoConfig
-	err := json.Unmarshal([]byte(reposStr), &repoData)
-	if err != nil {
-		fail(fmt.Sprintf("error loading repositories: %s", err))
-	}
-	archRepos, ok := repoData[archName]
-	if !ok {
-		fail(fmt.Sprintf("no repositories defined for %s", archName))
-	}
-	return archRepos
-}
-
 func loadConfig(path string) BuildConfig {
 	fp, err := os.Open(path)
 	check(err)
@@ -106,15 +87,10 @@ func makeManifest(c *ManifestConfig, cacheRoot string) (manifest.OSBuildManifest
 	manifest, err := Manifest(c)
 	check(err)
 
-	// depsolve packages
-	solver := dnfjson.NewSolver(modulePlatformID, releaseVersion, c.Architecture.String(), distroName, cacheRoot)
+	// HACK: must be non-nil or mainfest.Serialize below fails
 	depsolvedSets := make(map[string][]rpmmd.PackageSpec)
-	for name, pkgSet := range manifest.GetPackageSetChains() {
-		res, err := solver.Depsolve(pkgSet)
-		if err != nil {
-			return nil, err
-		}
-		depsolvedSets[name] = res
+	for name := range manifest.GetPackageSetChains() {
+		depsolvedSets[name] = make([]rpmmd.PackageSpec, 0, 1)
 	}
 
 	// resolve container
@@ -129,6 +105,7 @@ func makeManifest(c *ManifestConfig, cacheRoot string) (manifest.OSBuildManifest
 			return nil, err
 		}
 	}
+
 	mf, err := manifest.Serialize(depsolvedSets, containerSpecs, nil)
 	if err != nil {
 		fail(fmt.Sprintf("[ERROR] manifest serialization failed: %s", err.Error()))
@@ -142,6 +119,8 @@ func saveManifest(ms manifest.OSBuildManifest, fpath string) error {
 		return fmt.Errorf("failed to marshal data for %q: %s", fpath, err.Error())
 	}
 	b = append(b, '\n') // add new line at end of file
+	fmt.Println(string(b))
+
 	fp, err := os.Create(fpath)
 	if err != nil {
 		return fmt.Errorf("failed to create output file %q: %s", fpath, err.Error())
@@ -155,7 +134,6 @@ func saveManifest(ms manifest.OSBuildManifest, fpath string) error {
 
 func build(cmd *cobra.Command, args []string) {
 	hostArch := arch.Current()
-	repos := loadRepos(hostArch.String())
 
 	imgref := args[0]
 	outputDir, _ := cmd.Flags().GetString("output")
@@ -204,7 +182,6 @@ func build(cmd *cobra.Command, args []string) {
 		Imgref:       imgref,
 		ImgType:      imgType,
 		Config:       &config,
-		Repos:        repos,
 		Architecture: hostArch,
 		TLSVerify:    tlsVerify,
 	}

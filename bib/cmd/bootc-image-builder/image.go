@@ -15,7 +15,6 @@ import (
 	"github.com/osbuild/images/pkg/image"
 	"github.com/osbuild/images/pkg/manifest"
 	"github.com/osbuild/images/pkg/platform"
-	"github.com/osbuild/images/pkg/rpmmd"
 	"github.com/osbuild/images/pkg/runner"
 )
 
@@ -34,9 +33,6 @@ type ManifestConfig struct {
 	// Build config
 	Config *BuildConfig
 
-	// Repositories for a buildroot (or an installer tree in the future)
-	Repos []rpmmd.RepoConfig
-
 	// CPU architecture of the image
 	Architecture arch.Arch
 
@@ -47,13 +43,12 @@ type ManifestConfig struct {
 func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 	rng := createRand()
 
-	var img image.ImageKind
+	// TODO: make this a interface again
+	var img *image.OSTreeDiskImage
 	var err error
 
 	switch c.ImgType {
-	case "qcow2":
-		fallthrough
-	case "ami":
+	case "ami", "qcow2":
 		img, err = pipelinesForDiskImage(c, rng)
 	default:
 		fail(fmt.Sprintf("Manifest(): unsupported image type %q", c.ImgType))
@@ -66,12 +61,19 @@ func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 	mf := manifest.New()
 	mf.Distro = manifest.DISTRO_FEDORA
 	runner := &runner.Fedora{Version: 39}
-	_, err = img.InstantiateManifest(&mf, c.Repos, runner, rng)
+	containerSources := []container.SourceSpec{
+		{
+			Source:    c.Imgref,
+			Name:      c.Imgref,
+			TLSVerify: &c.TLSVerify,
+		},
+	}
+	_, err = img.InstantiateManifestFromContainerSources(&mf, containerSources, runner, rng)
 
 	return &mf, err
 }
 
-func pipelinesForDiskImage(c *ManifestConfig, rng *rand.Rand) (image.ImageKind, error) {
+func pipelinesForDiskImage(c *ManifestConfig, rng *rand.Rand) (*image.OSTreeDiskImage, error) {
 	if c.Imgref == "" {
 		fail("pipeline: no base image defined")
 	}
