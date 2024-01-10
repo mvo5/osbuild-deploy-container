@@ -44,7 +44,7 @@ func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 	rng := createRand()
 
 	// TODO: make this a interface again
-	var img *image.OSTreeDiskImage
+	var img *image.BootcDiskImage
 	var err error
 
 	switch c.ImgType {
@@ -68,30 +68,27 @@ func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 			TLSVerify: &c.TLSVerify,
 		},
 	}
-	_, err = img.InstantiateManifestFromContainerSources(&mf, containerSources, runner, rng)
+	_, err = img.InstantiateManifestFromContainers(&mf, containerSources, runner, rng)
 
 	return &mf, err
 }
 
-func pipelinesForDiskImage(c *ManifestConfig, rng *rand.Rand) (*image.OSTreeDiskImage, error) {
+func pipelinesForDiskImage(c *ManifestConfig, rng *rand.Rand) (*image.BootcDiskImage, error) {
 	if c.Imgref == "" {
 		fail("pipeline: no base image defined")
 	}
-	ref := "ostree/1/1/0"
 	containerSource := container.SourceSpec{
 		Source:    c.Imgref,
 		Name:      c.Imgref,
 		TLSVerify: &c.TLSVerify,
 	}
 
-	img := image.NewOSTreeDiskImageFromContainer(containerSource, ref)
-	img.ContainerBuildable = true
-
 	var customizations *blueprint.Customizations
 	if c.Config != nil && c.Config.Blueprint != nil {
 		customizations = c.Config.Blueprint.Customizations
 	}
 
+	img := image.NewBootcDiskImage(containerSource)
 	img.Users = users.UsersFromBP(customizations.GetUsers())
 	img.Groups = users.GroupsFromBP(customizations.GetGroups())
 
@@ -135,13 +132,9 @@ func pipelinesForDiskImage(c *ManifestConfig, rng *rand.Rand) (*image.OSTreeDisk
 		}
 	}
 
-	img.OSName = "default"
-
 	if kopts := customizations.GetKernel(); kopts != nil && kopts.Append != "" {
 		img.KernelOptionsAppend = append(img.KernelOptionsAppend, kopts.Append)
 	}
-
-	img.Workload = &NullWorkload{}
 
 	basept, ok := partitionTables[c.Architecture.String()]
 	if !ok {
