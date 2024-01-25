@@ -162,17 +162,23 @@ class QEMU(VM):
             time.sleep(1)
         raise Exception(f"no {self._qmp_socket} after {timeout_sec} seconds")
 
-    def wait_qmp_event(self, qmp_event):
+    def wait_qmp_event(self, qmp_event, timeout_sec=600):
         # import lazy to avoid requiring it for all operations
         import qmp
         self._wait_qmp_socket(30)
         mon = qmp.QEMUMonitorProtocol(os.fspath(self._qmp_socket))
         mon.connect()
+        now = time.time()
         while True:
-            event = mon.pull_event(wait=True)
-            self._log(f"DEBUG: got event {event}")
-            if event["event"] == qmp_event:
-                return
+            try:
+                event = mon.pull_event(wait=1.0)
+                self._log(f"DEBUG: got event {event}")
+                if event["event"] == qmp_event:
+                    return
+            except (qmp.QMPConnectError, qmp.QMPTimeoutError):
+                pass
+            if time.time() > now + timeout_sec:
+                raise Exception(f"no qmp:{qmp_event} after {timeout_sec} seconds")
 
     def force_stop(self):
         if self._qemu_p:
