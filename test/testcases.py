@@ -10,9 +10,7 @@ def gen_testcases(what):
 
     # bootc containers that are tested by default
     CONTAINERS_TO_TEST = {
-        # Pinned to a tag until https://bodhi.fedoraproject.org/updates/FEDORA-2024-969f546f80 is out
-        # xref https://github.com/osbuild/bootc-image-builder/issues/233
-        "fedora": "quay.io/centos-bootc/fedora-bootc:eln-1709537055",
+        "fedora": "quay.io/centos-bootc/fedora-bootc:eln",
         "centos": "quay.io/centos-bootc/centos-bootc:stream9",
     }
     # allow commandline override, this is used when testing
