@@ -228,11 +228,19 @@ func cmdManifest(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+var osbuildRunOSBuild = osbuild.RunOSBuild
+
 func cmdBuild(cmd *cobra.Command, args []string) error {
 	outputDir, _ := cmd.Flags().GetString("output")
 	osbuildStore, _ := cmd.Flags().GetString("store")
 	imgType, _ := cmd.Flags().GetString("type")
 	targetArch, _ := cmd.Flags().GetString("target-arch")
+
+	if chown != "" {
+		if _, _, err := parseChownArg(chown); err != nil {
+			return err
+		}
+	}
 
 	if err := setup.Validate(); err != nil {
 		return err
@@ -322,12 +330,58 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+<<<<<<< HEAD
 func run() error {
 	rootCmd := &cobra.Command{
 		Use:  "bootc-image-builder",
 		Long: "create a bootable image from an ostree native container",
 	}
+=======
+func parseChownArg(chown string) (uid, gid int, err error) {
+	errPrefix := "cannot parse chown string: %v"
 
+	uidS, gidS, _ := strings.Cut(chown, ":")
+	uid, err = strconv.Atoi(uidS)
+	if err != nil {
+		return -1, -1, fmt.Errorf(errPrefix, err)
+	}
+	if gidS != "" {
+		gid, err = strconv.Atoi(gidS)
+		if err != nil {
+			return -1, -1, fmt.Errorf(errPrefix, err)
+		}
+	} else {
+		gid = osGetgid()
+	}
+
+	return uid, gid, nil
+}
+
+func chownR(path string, chown string) error {
+	if chown == "" {
+		return nil
+	}
+
+	uid, gid, err := parseChownArg(chown)
+	if err != nil {
+		return err
+	}
+
+	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
+		if err == nil {
+			err = os.Chown(name, uid, gid)
+		}
+		return err
+	})
+}
+
+var rootCmd = &cobra.Command{
+	Use:  "bootc-image-builder",
+	Long: "create a bootable image from an ostree native container",
+}
+>>>>>>> ee0412b (bib: make main testable and check/tweak error of --chown)
+
+func run() error {
 	buildCmd := &cobra.Command{
 		Use:                   "build",
 		Long:                  rootCmd.Long,

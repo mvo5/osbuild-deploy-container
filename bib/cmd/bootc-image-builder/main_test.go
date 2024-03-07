@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/osbuild/images/pkg/blueprint"
 	"github.com/osbuild/images/pkg/container"
 	"github.com/osbuild/images/pkg/manifest"
+	"github.com/osbuild/images/pkg/osbuild"
 	"github.com/osbuild/images/pkg/rpmmd"
 )
 
@@ -458,4 +460,15 @@ func checkStages(serialized manifest.OSBuildManifest, pipelineStages map[string]
 	}
 
 	return nil
+}
+
+func TestMainBadOptsChown(t *testing.T) {
+	restore := main.MockOsbuildRunOSBuild(func(manifest []byte, store string, outputDirectory string, exports []string, checkpoints []string, extraEnv []string, result bool, errorWriter io.Writer) (*osbuild.Result, error) {
+		return &osbuild.Result{}, nil
+	})
+	defer restore()
+
+	main.RootCmd.SetArgs([]string{"build", "--chown=xxx", "container-ref"})
+	err := main.Run()
+	assert.EqualError(t, err, `cannot parse chown string: strconv.Atoi: parsing "xxx": invalid syntax`)
 }
