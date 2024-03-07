@@ -230,12 +230,20 @@ func cmdManifest(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+var osbuildRunOSBuild = osbuild.RunOSBuild
+
 func cmdBuild(cmd *cobra.Command, args []string) error {
 	chown, _ := cmd.Flags().GetString("chown")
 	imgType, _ := cmd.Flags().GetString("type")
 	osbuildStore, _ := cmd.Flags().GetString("store")
 	outputDir, _ := cmd.Flags().GetString("output")
 	targetArch, _ := cmd.Flags().GetString("target-arch")
+
+	if chown != "" {
+		if _, _, err := parseChownArg(chown); err != nil {
+			return err
+		}
+	}
 
 	if err := setup.Validate(); err != nil {
 		return err
@@ -333,24 +341,34 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func parseChownArg(chown string) (uid, gid int, err error) {
+	errPrefix := "cannot parse chown string: %v"
+
+	uidS, gidS, _ := strings.Cut(chown, ":")
+	uid, err = strconv.Atoi(uidS)
+	if err != nil {
+		return -1, -1, fmt.Errorf(errPrefix, err)
+	}
+	if gidS != "" {
+		gid, err = strconv.Atoi(gidS)
+		if err != nil {
+			return -1, -1, fmt.Errorf(errPrefix, err)
+		}
+	} else {
+		gid = osGetgid()
+	}
+
+	return uid, gid, nil
+}
+
 func chownR(path string, chown string) error {
 	if chown == "" {
 		return nil
 	}
 
-	var gid int
-	uidS, gidS, _ := strings.Cut(chown, ":")
-	uid, err := strconv.Atoi(uidS)
+	uid, gid, err := parseChownArg(chown)
 	if err != nil {
 		return err
-	}
-	if gidS != "" {
-		gid, err = strconv.Atoi(gidS)
-		if err != nil {
-			return err
-		}
-	} else {
-		gid = osGetgid()
 	}
 
 	return filepath.Walk(path, func(name string, info os.FileInfo, err error) error {
@@ -361,12 +379,12 @@ func chownR(path string, chown string) error {
 	})
 }
 
-func run() error {
-	rootCmd := &cobra.Command{
-		Use:  "bootc-image-builder",
-		Long: "create a bootable image from an ostree native container",
-	}
+var rootCmd = &cobra.Command{
+	Use:  "bootc-image-builder",
+	Long: "create a bootable image from an ostree native container",
+}
 
+func run() error {
 	buildCmd := &cobra.Command{
 		Use:                   "build",
 		Long:                  rootCmd.Long,
