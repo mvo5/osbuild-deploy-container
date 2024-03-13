@@ -53,7 +53,7 @@ func TestCanChownInPathCannotChange(t *testing.T) {
 
 type manifestTestCase struct {
 	config     *main.ManifestConfig
-	imageType  string
+	imageTypes []string
 	packages   map[string][]rpmmd.PackageSpec
 	containers map[string][]container.Spec
 	expStages  map[string][]string
@@ -70,8 +70,8 @@ func getUserConfig() *main.ManifestConfig {
 	pass := "super-secret-password-42"
 	key := "ssh-ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	return &main.ManifestConfig{
-		Imgref:  "testuser",
-		ImgType: "",
+		Imgref:   "testuser",
+		ImgTypes: nil,
 		Config: &main.BuildConfig{
 			Blueprint: &blueprint.Blueprint{
 				Customizations: &blueprint.Customizations{
@@ -92,37 +92,37 @@ func TestManifestGenerationEmptyConfig(t *testing.T) {
 	baseConfig := getBaseConfig()
 	testCases := map[string]manifestTestCase{
 		"ami-base": {
-			config:    baseConfig,
-			imageType: "ami",
+			config:     baseConfig,
+			imageTypes: []string{"ami"},
 		},
 		"raw-base": {
-			config:    baseConfig,
-			imageType: "raw",
+			config:     baseConfig,
+			imageTypes: []string{"raw"},
 		},
 		"qcow2-base": {
-			config:    baseConfig,
-			imageType: "qcow2",
+			config:     baseConfig,
+			imageTypes: []string{"qcow2"},
 		},
 		"iso-base": {
-			config:    baseConfig,
-			imageType: "iso",
+			config:     baseConfig,
+			imageTypes: []string{"iso"},
 		},
 		"empty-config": {
-			config:    &main.ManifestConfig{},
-			imageType: "qcow2",
-			err:       errors.New("pipeline: no base image defined"),
+			config:     &main.ManifestConfig{},
+			imageTypes: []string{"qcow2"},
+			err:        errors.New("pipeline: no base image defined"),
 		},
 		"bad-image-type": {
-			config:    baseConfig,
-			imageType: "bad",
-			err:       errors.New("Manifest(): unsupported image type \"bad\""),
+			config:     baseConfig,
+			imageTypes: []string{"bad"},
+			err:        errors.New("Manifest(): unsupported image type \"bad\""),
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			config.ImgType = tc.imageType
+			config.ImgTypes = tc.imageTypes
 			_, err := main.Manifest(&config)
 			assert.Equal(t, err, tc.err)
 		})
@@ -133,27 +133,27 @@ func TestManifestGenerationUserConfig(t *testing.T) {
 	userConfig := getUserConfig()
 	testCases := map[string]manifestTestCase{
 		"ami-user": {
-			config:    userConfig,
-			imageType: "ami",
+			config:     userConfig,
+			imageTypes: []string{"ami"},
 		},
 		"raw-user": {
-			config:    userConfig,
-			imageType: "raw",
+			config:     userConfig,
+			imageTypes: []string{"raw"},
 		},
 		"qcow2-user": {
-			config:    userConfig,
-			imageType: "qcow2",
+			config:     userConfig,
+			imageTypes: []string{"qcow2"},
 		},
 		"iso-user": {
-			config:    userConfig,
-			imageType: "iso",
+			config:     userConfig,
+			imageTypes: []string{"iso"},
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			config.ImgType = tc.imageType
+			config.ImgTypes = tc.imageTypes
 			_, err := main.Manifest(&config)
 			assert.NoError(t, err)
 		})
@@ -227,7 +227,7 @@ func TestManifestSerialization(t *testing.T) {
 	testCases := map[string]manifestTestCase{
 		"ami-base": {
 			config:     baseConfig,
-			imageType:  "ami",
+			imageTypes: []string{"ami"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -244,7 +244,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"raw-base": {
 			config:     baseConfig,
-			imageType:  "raw",
+			imageTypes: []string{"raw"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -261,7 +261,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"qcow2-base": {
 			config:     baseConfig,
-			imageType:  "qcow2",
+			imageTypes: []string{"qcow2"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -278,7 +278,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"ami-user": {
 			config:     userConfig,
-			imageType:  "ami",
+			imageTypes: []string{"ami"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -293,7 +293,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"raw-user": {
 			config:     userConfig,
-			imageType:  "raw",
+			imageTypes: []string{"raw"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -308,7 +308,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"qcow2-user": {
 			config:     userConfig,
-			imageType:  "qcow2",
+			imageTypes: []string{"qcow2"},
 			containers: diskContainers,
 			expStages: map[string][]string{
 				"build": {"org.osbuild.container-deploy"},
@@ -323,7 +323,7 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"iso-user": {
 			config:     userConfig,
-			imageType:  "iso",
+			imageTypes: []string{"iso"},
 			containers: isoContainers,
 			packages:   isoPackages,
 			expStages: map[string][]string{
@@ -333,31 +333,31 @@ func TestManifestSerialization(t *testing.T) {
 		},
 		"iso-nobuildpkg": {
 			config:     userConfig,
-			imageType:  "iso",
+			imageTypes: []string{"iso"},
 			containers: isoContainers,
 			packages:   pkgsNoBuild,
 			err:        "serialization not started",
 		},
 		"iso-nocontainer": {
-			config:    userConfig,
-			imageType: "iso",
-			packages:  isoPackages,
-			err:       "missing ostree, container, or ospipeline parameters in ISO tree pipeline",
+			config:     userConfig,
+			imageTypes: []string{"iso"},
+			packages:   isoPackages,
+			err:        "missing ostree, container, or ospipeline parameters in ISO tree pipeline",
 		},
 		"ami-nocontainer": {
-			config:    userConfig,
-			imageType: "ami",
-			err:       "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
+			config:     userConfig,
+			imageTypes: []string{"ami"},
+			err:        "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
 		},
 		"raw-nocontainer": {
-			config:    userConfig,
-			imageType: "raw",
-			err:       "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
+			config:     userConfig,
+			imageTypes: []string{"raw"},
+			err:        "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
 		},
 		"qcow2-nocontainer": {
-			config:    userConfig,
-			imageType: "qcow2",
-			err:       "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
+			config:     userConfig,
+			imageTypes: []string{"qcow2"},
+			err:        "pipeline ostree-deployment requires exactly one ostree commit or one container (have commits: []; containers: [])",
 		},
 	}
 
@@ -366,7 +366,7 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*tc.config)
-			config.ImgType = tc.imageType
+			config.ImgTypes = tc.imageTypes
 			mf, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 
@@ -388,7 +388,7 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run("iso-nopkgs", func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*userConfig)
-			config.ImgType = "iso"
+			config.ImgTypes = []string{"iso"}
 			manifest, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 

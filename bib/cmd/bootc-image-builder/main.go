@@ -189,13 +189,6 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, error) {
 	tlsVerify, _ := cmd.Flags().GetBool("tls-verify")
 	localStorage, _ := cmd.Flags().GetBool("local")
 
-	// translate anaconda-iso to iso to avoid multiple image type checks
-	for idx := range imgTypes {
-		if imgTypes[idx] == "anaconda-iso" {
-			imgTypes[idx] = "iso"
-		}
-	}
-
 	if targetArch != "" {
 		// TODO: detect if binfmt_misc for target arch is
 		// available, e.g. by mounting the binfmt_misc fs into
@@ -207,9 +200,6 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, error) {
 			return nil, fmt.Errorf("cannot build iso for different target arches yet")
 		}
 		buildArch = arch.FromString(targetArch)
-	}
-	if slices.Contains(imgTypes, "iso") && len(imgTypes) > 1 {
-		return nil, fmt.Errorf("cannot build iso with different target types")
 	}
 	// TODO: add "target-variant", see https://github.com/osbuild/bootc-image-builder/pull/139/files#r1467591868
 
@@ -223,14 +213,10 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, error) {
 		config = &BuildConfig{}
 	}
 
-	// Disk image types all share the same manifest but with different export pipelines.
-	// ISO images can't be built alongside other image types.
-	// Therefore, the first element is enough.
-	imgType := imgTypes[0]
 	manifestConfig := &ManifestConfig{
 		Architecture: buildArch,
 		Config:       config,
-		ImgType:      imgType,
+		ImgTypes:     imgTypes,
 		Imgref:       imgref,
 		Repos:        repos,
 		TLSVerify:    tlsVerify,
