@@ -78,6 +78,8 @@ func manifestForDiskImage(c *ManifestConfig, rng *rand.Rand) (*manifest.Manifest
 
 	img := image.NewBootcDiskImage(containerSource)
 	img.Users = users.UsersFromBP(customizations.GetUsers())
+	// TODO: get from the bootc container instead of hardcoding it
+	img.SElinux = "targeted"
 
 	img.KernelOptionsAppend = []string{
 		"rw",
