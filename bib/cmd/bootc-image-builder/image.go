@@ -188,6 +188,8 @@ func manifestForISO(c *ManifestConfig, rng *rand.Rand) (*manifest.Manifest, erro
 	// in time
 	img := image.NewAnacondaContainerInstaller(containerSource, "")
 	img.SquashfsCompression = "zstd"
+	// XXX: add reason!
+	img.ContainerRemoveSignatures = true
 
 	img.Product = c.SourceInfo.OSRelease.Name
 
