@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -95,7 +96,7 @@ func AttachProgress(r io.Reader, w io.Writer) {
 			}
 
 			if progress.Progress.Total > 0 {
-				mainProgress = fmt.Sprintf("component: %v [%v/%v]", pipelineName, progress.Progress.Done+1, progress.Progress.Total+1)
+				mainProgress = fmt.Sprintf("step: %v [%v/%v]", pipelineName, progress.Progress.Done+1, progress.Progress.Total+1)
 			}
 			// XXX: use context instead of name here too
 			if progress.Progress.SubProgress.Total > 0 {
@@ -129,15 +130,16 @@ func AttachProgress(r io.Reader, w io.Writer) {
 		// poor man progress, we need multiple progress bars and
 		// a message that keeps getting updated (or maybe not the
 		// message)
-		fmt.Fprintf(w, "\x1b[2K[%s] %s\n", spinner[i], mainProgress)
+		fmt.Fprintf(w, "\x1b[2KBuilding [%s]\n", spinner[i])
+		fmt.Fprintf(w, "\x1b[2Kstep   : %s\n", mainProgress)
 		if subProgress != "" {
-			fmt.Fprintf(w, "\x1b[2Ksub-progress: %s\n", subProgress)
+			fmt.Fprintf(w, "\x1b[2Kmodule : %s\n", strings.TrimPrefix(subProgress, "org.osbuild."))
 		}
-		fmt.Fprintf(w, "\x1b[2Kmessage: %s\n", message)
+		fmt.Fprintf(w, "\x1b[3Kmessage: %s\n", message)
 		if subProgress != "" {
-			fmt.Fprintf(w, "\x1b[%dA", 3)
+			fmt.Fprintf(w, "\x1b[%dA", 4)
 		} else {
-			fmt.Fprintf(w, "\x1b[%dA", 2)
+			fmt.Fprintf(w, "\x1b[%dA", 3)
 		}
 		// spin
 		i = (i + 1) % len(spinner)
