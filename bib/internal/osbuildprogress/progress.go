@@ -52,7 +52,7 @@ func scanJsonSeq(r io.Reader, ch chan OsbuildJsonProgress) {
 		//println(string(line))
 		line = bytes.Trim(line, "\x1e")
 		if err := json.Unmarshal(line, &progress); err != nil {
-			fmt.Fprintf(os.Stderr, "json decode err for %s: %v\n", line, err)
+			fmt.Fprintf(os.Stderr, "json decode err for line %q: %v\n", line, err)
 			continue
 		}
 		ch <- progress

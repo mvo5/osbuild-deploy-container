@@ -18,6 +18,11 @@ import (
 // EnsureEnvironment mutates external filesystem state as necessary
 // to run in a container environment.  This function is idempotent.
 func EnsureEnvironment(storePath string) error {
+	if err := exec.Command("systemd-detect-virt", "-c").Run(); err != nil {
+		// XXX: meep
+		return nil
+	}
+
 	osbuildPath := "/usr/bin/osbuild"
 	if util.IsMountpoint(osbuildPath) {
 		return nil
