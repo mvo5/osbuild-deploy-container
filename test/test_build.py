@@ -46,24 +46,6 @@ class ImageBuildResult(NamedTuple):
     metadata: dict = {}
 
 
-def parse_request_params(request):
-    # image_type is passed via special pytest parameter fixture
-    testcase_ref = request.param
-    if testcase_ref.count(",") == 3:
-        container_ref, images, target_arch, local = testcase_ref.split(",")
-        local = local is not None
-    elif testcase_ref.count(",") == 2:
-        container_ref, images, target_arch = testcase_ref.split(",")
-        local = False
-    elif testcase_ref.count(",") == 1:
-        container_ref, images = testcase_ref.split(",")
-        target_arch = None
-        local = False
-    else:
-        raise ValueError(f"cannot parse {testcase_ref.count}")
-    return container_ref, images, target_arch, local
-
-
 @pytest.fixture(scope='session')
 def shared_tmpdir(tmpdir_factory):
     tmp_path = pathlib.Path(tmpdir_factory.mktemp("shared"))
@@ -78,13 +60,13 @@ def image_type_fixture(shared_tmpdir, build_container, request, force_aws_upload
     In the case an image is being built from a local container, the
     function will build the required local container for the test.
     """
-    container_ref, images, target_arch, local = parse_request_params(request)
+    container_ref = request.param.container_ref
 
-    if local:
+    if request.param.local:
         cont_tag = "localhost/cont-base-" + "".join(random.choices(string.digits, k=12))
 
         # we are not cross-building local images (for now)
-        request.param = ",".join([cont_tag, images, "", "true"])
+        request.param.target_arch = ""
 
         # copy the container into containers-storage
         subprocess.check_call([
@@ -117,11 +99,14 @@ def build_images(shared_tmpdir, build_container, request, force_aws_upload):
 
     :request.param: has the form "container_url,img_type1+img_type2,arch,local"
     """
-    container_ref, images, target_arch, local = parse_request_params(request)
+    container_ref = request.param.container_ref
+    target_arch = request.param.target_arch
+    rootfs = request.param.rootfs
+    local = request.param.local
 
     # images might be multiple --type args
     # split and check each one
-    image_types = images.split("+")
+    image_types = request.param.image.split("+")
 
     username = "test"
     password = "password"
@@ -151,7 +136,7 @@ def build_images(shared_tmpdir, build_container, request, force_aws_upload):
         "vmdk": pathlib.Path(output_path) / "vmdk/disk.vmdk",
         "anaconda-iso": pathlib.Path(output_path) / "bootiso/install.iso",
     }
-    assert len(artifact) == len(set(t.split(",")[1] for t in gen_testcases("all"))), \
+    assert len(artifact) == len(set(tc.image for tc in gen_testcases("all"))), \
         "please keep artifact mapping and supported images in sync"
 
     # this helper checks the cache
@@ -272,17 +257,14 @@ def build_images(shared_tmpdir, build_container, request, force_aws_upload):
             "-v", f"{output_path}:/output",
             "-v", "/var/tmp/osbuild-test-store:/store",  # share the cache between builds
         ]
+        if request.param.rootfs:
+            rootfs_args = ["--rootfs", rootfs]
+        else:
+            rootfs_args = []
 
         # we need to mount the host's container store
         if local:
             cmd.extend(["-v", "/var/lib/containers/storage:/var/lib/containers/storage"])
-
-        # fedora has no default roofs, pick "brfs" for testing here
-        # TODO: make part of testcase instead of hacking it in here
-        if "fedora" in container_ref:
-            rootfs_args = ["--rootfs", "btrfs"]
-        else:
-            rootfs_args = []
 
         cmd.extend([
             *creds_args,

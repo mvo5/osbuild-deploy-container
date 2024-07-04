@@ -1,3 +1,5 @@
+import dataclasses
+import inspect
 import os
 import platform
 
@@ -17,6 +19,33 @@ CLOUD_BOOT_IMAGE_TYPES = ("ami",)
 INSTALLER_IMAGE_TYPES = ("anaconda-iso",)
 
 
+@dataclasses.dataclass(frozen=True)
+class TestCase:
+    # container_ref to the bootc image, e.g. quay.io/fedora/fedora-bootc:40
+    container_ref: str
+    # image is the image type, e.g. "ami"
+    image: str = ""
+    # target_arch is the target archicture, empty means current arch
+    target_arch: str = ""
+    # custom rootfs, e.g. "btrfs" or "ext4", required if the container
+    # does not have a default rootfs like fedora
+    rootfs: str = ""
+    # local means that the container should be pulled locally ("--local" flag)
+    local: bool = False
+
+    def rootfs_args(self):
+        if not self.rootfs:
+            return []
+        return ["--rootfs", self.rootfs]
+
+    def __str__(self):
+        return ",".join([
+            attr
+            for name, attr in inspect.getmembers_static(self)
+            if not name.startswith("_") and not callable(attr) and attr
+        ])
+
+
 def gen_testcases(what):
     # bootc containers that are tested by default
     CONTAINERS_TO_TEST = {
@@ -33,46 +62,50 @@ def gen_testcases(what):
         }
 
     if what == "manifest":
-        return CONTAINERS_TO_TEST.values()
+        return [TestCase(container_ref=ref)
+                for ref in CONTAINERS_TO_TEST.values()]
     elif what == "default-rootfs":
         # Fedora doesn't have a default rootfs
-        return [CONTAINERS_TO_TEST["centos"]]
+        return [TestCase(container_ref=CONTAINERS_TO_TEST["centos"])]
     elif what == "ami-boot":
-        return [cnt + ",ami" for cnt in CONTAINERS_TO_TEST.values()]
+        test_cases = []
+        for ref in CONTAINERS_TO_TEST.values():
+            test_cases.append(TestCase(container_ref=ref, image="ami"))
+        return test_cases
     elif what == "anaconda-iso":
         test_cases = []
-        for cnt in CONTAINERS_TO_TEST.values():
+        for ref in CONTAINERS_TO_TEST.values():
             for img_type in INSTALLER_IMAGE_TYPES:
-                test_cases.append(f"{cnt},{img_type}")
+                test_cases.append(TestCase(container_ref=ref, image=img_type))
         return test_cases
     elif what == "qemu-boot":
         test_cases = []
-        for cnt in CONTAINERS_TO_TEST.values():
+        for distro, ref in CONTAINERS_TO_TEST.items():
             for img_type in QEMU_BOOT_IMAGE_TYPES:
-                test_cases.append(f"{cnt},{img_type}")
+                rootfs = "" if distro != "fedora" else "btrfs"
+                test_cases.append(
+                    TestCase(container_ref=ref, image=img_type, rootfs=rootfs))
         # do a cross arch test too
         if platform.machine() == "x86_64":
             # todo: add fedora:eln
-            test_cases.append(
-                f'{CONTAINERS_TO_TEST["centos"]},raw,arm64')
+            test_cases.append(TestCase(container_ref=ref, image="raw", target_arch="arm64"))
         elif platform.machine() == "arm64":
             # TODO: add arm64->x86_64 cross build test too
             pass
         return test_cases
     elif what == "all":
         test_cases = []
-        for cnt in CONTAINERS_TO_TEST.values():
+        for ref in CONTAINERS_TO_TEST.values():
             for img_type in QEMU_BOOT_IMAGE_TYPES + \
                     CLOUD_BOOT_IMAGE_TYPES + \
                     NON_QEMU_BOOT_IMAGE_TYPES + \
                     INSTALLER_IMAGE_TYPES:
-                test_cases.append(f"{cnt},{img_type}")
+                test_cases.append(TestCase(container_ref=ref, image=img_type))
         return test_cases
     elif what == "multidisk":
         # single test that specifies all image types
         test_cases = []
-        for cnt in CONTAINERS_TO_TEST.values():
-            img_type = "+".join(DISK_IMAGE_TYPES)
-            test_cases.append(f"{cnt},{img_type}")
+        for ref in CONTAINERS_TO_TEST.values():
+            test_cases.append(TestCase(container_ref=ref, image="+".join(DISK_IMAGE_TYPES)))
         return test_cases
     raise ValueError(f"unknown test-case type {what}")
