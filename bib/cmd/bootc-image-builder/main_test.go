@@ -97,7 +97,6 @@ func getUserConfig() *main.ManifestConfig {
 	return &main.ManifestConfig{
 		Architecture: arch.ARCH_X86_64,
 		Imgref:       "testuser",
-		BuildType:    0,
 		Config: &buildconfig.BuildConfig{
 			Customizations: &blueprint.Customizations{
 				User: []blueprint.UserCustomization{
@@ -156,9 +155,9 @@ func TestManifestGenerationEmptyConfig(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			bt, err := main.NewBuildType(tc.imageTypes)
+			br, err := main.NewBuildRequest(tc.imageTypes)
 			assert.NoError(t, err)
-			config.BuildType = bt
+			config.BuildReq = br
 			_, err = main.Manifest(&config)
 			assert.Equal(t, err, tc.err)
 		})
@@ -189,9 +188,9 @@ func TestManifestGenerationUserConfig(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			bt, err := main.NewBuildType(tc.imageTypes)
+			br, err := main.NewBuildRequest(tc.imageTypes)
 			assert.NoError(t, err)
-			config.BuildType = bt
+			config.BuildReq = br
 			_, err = main.Manifest(&config)
 			assert.NoError(t, err)
 		})
@@ -418,9 +417,9 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*tc.config)
-			bt, err := main.NewBuildType(tc.imageTypes)
+			br, err := main.NewBuildRequest(tc.imageTypes)
 			assert.NoError(err)
-			config.BuildType = bt
+			config.BuildReq = br
 			mf, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 
@@ -442,7 +441,7 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run("iso-nopkgs", func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*userConfig)
-			config.BuildType, _ = main.NewBuildType([]string{"iso"})
+			config.BuildReq, _ = main.NewBuildRequest([]string{"iso"})
 			manifest, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 
@@ -514,69 +513,73 @@ func checkStages(serialized manifest.OSBuildManifest, pipelineStages map[string]
 	return nil
 }
 
-type buildTypeTestCase struct {
+type buildReqTestCase struct {
 	imageTypes []string
-	buildType  main.BuildType
+	expectISO  bool
 	err        error
 }
 
-func TestBuildType(t *testing.T) {
-	testCases := map[string]buildTypeTestCase{
+func TestBuildRequest(t *testing.T) {
+	testCases := map[string]buildReqTestCase{
 		"qcow-disk": {
 			imageTypes: []string{"qcow2"},
-			buildType:  main.BuildTypeDisk,
+			expectISO:  false,
 		},
 		"ami-disk": {
 			imageTypes: []string{"ami"},
-			buildType:  main.BuildTypeDisk,
+			expectISO:  false,
 		},
 		"qcow-ami-disk": {
 			imageTypes: []string{"qcow2", "ami"},
-			buildType:  main.BuildTypeDisk,
+			expectISO:  false,
 		},
 		"ami-raw": {
 			imageTypes: []string{"ami", "raw"},
-			buildType:  main.BuildTypeDisk,
+			expectISO:  false,
 		},
 		"all-disk": {
 			imageTypes: []string{"ami", "raw", "vmdk", "qcow2"},
-			buildType:  main.BuildTypeDisk,
+			expectISO:  false,
 		},
 		"iso": {
 			imageTypes: []string{"iso"},
-			buildType:  main.BuildTypeISO,
+			expectISO:  true,
 		},
 		"anaconda": {
 			imageTypes: []string{"anaconda-iso"},
-			buildType:  main.BuildTypeISO,
+			expectISO:  true,
 		},
 		"bad-mix": {
 			imageTypes: []string{"vmdk", "anaconda-iso"},
-			err:        errors.New("cannot build \"anaconda-iso\" with different target types"),
+			err:        errors.New("cannot mix ISO/disk images in request [vmdk anaconda-iso]"),
 		},
 		"bad-mix-part-2": {
 			imageTypes: []string{"ami", "iso"},
-			err:        errors.New("cannot build \"iso\" with different target types"),
+			err:        errors.New("cannot mix ISO/disk images in request [ami iso]"),
 		},
 		"bad-image-type": {
 			imageTypes: []string{"bad"},
-			err:        errors.New("NewBuildType(): unsupported image type \"bad\""),
+			err:        errors.New(`unsupported image type "bad", valid types are ami, anaconda-iso, iso, qcow2, raw, vhd, vmdk`),
 		},
 		"bad-in-good": {
 			imageTypes: []string{"ami", "raw", "vmdk", "qcow2", "something-else-what-is-this"},
-			err:        errors.New("NewBuildType(): unsupported image type \"something-else-what-is-this\""),
+			err:        errors.New(`unsupported image type "something-else-what-is-this", valid types are ami, anaconda-iso, iso, qcow2, raw, vhd, vmdk`),
 		},
 		"all-bad": {
 			imageTypes: []string{"bad1", "bad2", "bad3", "bad4", "bad5", "bad42"},
-			err:        errors.New("NewBuildType(): unsupported image type \"bad1\""),
+			err:        errors.New(`unsupported image type "bad1", valid types are ami, anaconda-iso, iso, qcow2, raw, vhd, vmdk`),
 		},
 	}
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			bt, err := main.NewBuildType(tc.imageTypes)
-			assert.Equal(t, err, tc.err)
-			assert.Equal(t, bt, tc.buildType)
+			br, err := main.NewBuildRequest(tc.imageTypes)
+			if tc.err != nil {
+				assert.Equal(t, err, tc.err)
+			} else {
+				assert.Equal(t, br.ISO, tc.expectISO)
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
