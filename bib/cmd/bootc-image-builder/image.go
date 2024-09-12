@@ -37,7 +37,7 @@ type ManifestConfig struct {
 	// OCI image path (without the transport, that is always docker://)
 	Imgref string
 
-	BuildType BuildType
+	BuildReq *BuildRequest
 
 	// Build config
 	Config *buildconfig.BuildConfig
@@ -68,14 +68,10 @@ type ManifestConfig struct {
 func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 	rng := createRand()
 
-	switch c.BuildType {
-	case BuildTypeDisk:
-		return manifestForDiskImage(c, rng)
-	case BuildTypeISO:
+	if c.BuildReq.ISO {
 		return manifestForISO(c, rng)
-	default:
-		return nil, fmt.Errorf("Manifest(): unknown build type %d", c.BuildType)
 	}
+	return manifestForDiskImage(c, rng)
 }
 
 var (

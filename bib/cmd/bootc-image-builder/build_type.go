@@ -6,41 +6,19 @@ import (
 	"strings"
 )
 
-type BuildType int
-
-const (
-	BuildTypeDisk BuildType = iota + 1
-	BuildTypeISO
-)
-
-var supportedImageTypes = map[string]BuildType{
-	"ami":          BuildTypeDisk,
-	"qcow2":        BuildTypeDisk,
-	"raw":          BuildTypeDisk,
-	"vmdk":         BuildTypeDisk,
-	"vhd":          BuildTypeDisk,
-	"anaconda-iso": BuildTypeISO,
-	"iso":          BuildTypeISO,
+type imageType struct {
+	Export string
+	ISO    bool
 }
 
-func NewBuildType(imageTypes []string) (BuildType, error) {
-	if len(imageTypes) == 0 {
-		return 0, fmt.Errorf("cannot convert empty array of image types")
-	}
-
-	buildType := supportedImageTypes[imageTypes[0]]
-	for _, typ := range imageTypes {
-		if bt, ok := supportedImageTypes[typ]; ok {
-			if buildType != bt { // build types can't be mixed
-				return 0, fmt.Errorf("cannot build %q with different target types", typ)
-			}
-		} else {
-			return 0, fmt.Errorf("NewBuildType(): unsupported image type %q", typ)
-		}
-
-	}
-
-	return supportedImageTypes[imageTypes[0]], nil
+var supportedImageTypes = map[string]imageType{
+	"ami":          imageType{Export: "image"},
+	"qcow2":        imageType{Export: "qcow2"},
+	"raw":          imageType{Export: "image"},
+	"vmdk":         imageType{Export: "vmdk"},
+	"vhd":          imageType{Export: "vhd"},
+	"anaconda-iso": imageType{Export: "anaconda-iso", ISO: true},
+	"iso":          imageType{Export: "iso", ISO: true},
 }
 
 // allImageTypesString returns a comma-separated list of supported types
@@ -52,5 +30,36 @@ func allImageTypesString() string {
 	sort.Strings(keys)
 
 	return strings.Join(keys, ", ")
+}
 
+type BuildRequest struct {
+	Exports []string
+	ISO     bool
+}
+
+func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
+	if len(imageTypeNames) == 0 {
+		return nil, fmt.Errorf("cannot convert empty array of image types")
+	}
+
+	var ISOs int
+	exports := make([]string, 0, len(imageTypeNames))
+	for _, name := range imageTypeNames {
+		imgType, ok := supportedImageTypes[name]
+		if !ok {
+			return nil, fmt.Errorf("unsupported image type %q, valid types are %s", name, allImageTypesString())
+		}
+		if imgType.ISO {
+			ISOs++
+		}
+		exports = append(exports, imgType.Export)
+	}
+	if ISOs != len(imageTypeNames) {
+		return nil, fmt.Errorf("cannot mix ISO/disk images in request %v", imageTypeNames)
+	}
+
+	return &BuildRequest{
+		Exports: exports,
+		ISO:     (ISOs > 0),
+	}, nil
 }
