@@ -35,6 +35,9 @@ func allImageTypesString() string {
 type BuildRequest struct {
 	Exports []string
 	ISO     bool
+
+	// XXX does not quite fit
+	Manifest []byte
 }
 
 func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {

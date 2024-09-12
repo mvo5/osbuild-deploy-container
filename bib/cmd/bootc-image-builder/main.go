@@ -177,7 +177,7 @@ func saveManifest(ms manifest.OSBuildManifest, fpath string) error {
 	return nil
 }
 
-func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, *mTLSConfig, error) {
+func manifestFromCobra(cmd *cobra.Command, args []string) (*BuildRequest, *mTLSConfig, error) {
 	cntArch := arch.Current()
 
 	imgref := args[0]
@@ -319,15 +319,16 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, *mTLSConfig, 
 		return nil, nil, err
 	}
 
-	return manifest, mTLS, nil
+	buildReq.Manifest = manifest
+	return buildReq, mTLS, nil
 }
 
 func cmdManifest(cmd *cobra.Command, args []string) error {
-	mf, _, err := manifestFromCobra(cmd, args)
+	buildReq, _, err := manifestFromCobra(cmd, args)
 	if err != nil {
 		return fmt.Errorf("cannot generate manifest: %w", err)
 	}
-	fmt.Print(string(mf))
+	fmt.Print(string(buildReq.Manifest))
 	return nil
 }
 
@@ -420,14 +421,14 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 
 	manifest_fname := fmt.Sprintf("manifest-%s.json", strings.Join(imgTypes, "-"))
 	fmt.Printf("Generating manifest %s\n", manifest_fname)
-	mf, mTLS, err := manifestFromCobra(cmd, args)
+	buildReq, mTLS, err := manifestFromCobra(cmd, args)
 	if err != nil {
 		return fmt.Errorf("cannot build manifest: %w", err)
 	}
 	fmt.Print("DONE\n")
 
 	manifestPath := filepath.Join(outputDir, manifest_fname)
-	if err := saveManifest(mf, manifestPath); err != nil {
+	if err := saveManifest(buildReq.Manifest, manifestPath); err != nil {
 		return fmt.Errorf("cannot save manifest: %w", err)
 	}
 
@@ -450,7 +451,7 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 		osbuildEnv = append(osbuildEnv, envVars...)
 	}
 
-	_, err = osbuild.RunOSBuild(mf, osbuildStore, outputDir, buildReq.Exports, nil, osbuildEnv, false, os.Stderr)
+	_, err = osbuild.RunOSBuild(buildReq.Manifest, osbuildStore, outputDir, buildReq.Exports, nil, osbuildEnv, false, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("cannot run osbuild: %w", err)
 	}
