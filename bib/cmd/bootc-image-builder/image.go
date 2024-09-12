@@ -37,10 +37,11 @@ type ManifestConfig struct {
 	// OCI image path (without the transport, that is always docker://)
 	Imgref string
 
-	BuildReq *BuildRequest
-
-	// Build config
+	// User requeted build config (e.g. blueprints)
 	Config *buildconfig.BuildConfig
+
+	// User requested Exports and disk/ISO
+	BuildReq *BuildRequest
 
 	// CPU architecture of the image
 	Architecture arch.Arch

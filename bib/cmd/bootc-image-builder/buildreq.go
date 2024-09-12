@@ -42,10 +42,10 @@ type BuildRequest struct {
 
 func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
 	if len(imageTypeNames) == 0 {
-		return nil, fmt.Errorf("cannot convert empty array of image types")
+		return nil, fmt.Errorf("cannot use an empty array as a build request")
 	}
 
-	var ISOs, Disks int
+	var ISOs, disks int
 	exports := make([]string, 0, len(imageTypeNames))
 	for _, name := range imageTypeNames {
 		imgType, ok := supportedImageTypes[name]
@@ -55,11 +55,11 @@ func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
 		if imgType.ISO {
 			ISOs++
 		} else {
-			Disks++
+			disks++
 		}
 		exports = append(exports, imgType.Export)
 	}
-	if ISOs > 0 && Disks > 0 {
+	if ISOs > 0 && disks > 0 {
 		return nil, fmt.Errorf("cannot mix ISO/disk images in request %v", imageTypeNames)
 	}
 
