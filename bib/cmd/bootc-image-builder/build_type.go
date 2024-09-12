@@ -16,7 +16,7 @@ var supportedImageTypes = map[string]imageType{
 	"qcow2":        imageType{Export: "qcow2"},
 	"raw":          imageType{Export: "image"},
 	"vmdk":         imageType{Export: "vmdk"},
-	"vhd":          imageType{Export: "vhd"},
+	"vhd":          imageType{Export: "vpc"},
 	"anaconda-iso": imageType{Export: "anaconda-iso", ISO: true},
 	"iso":          imageType{Export: "iso", ISO: true},
 }
