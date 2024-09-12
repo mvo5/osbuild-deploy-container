@@ -45,7 +45,7 @@ func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
 		return nil, fmt.Errorf("cannot convert empty array of image types")
 	}
 
-	var ISOs int
+	var ISOs, Disks int
 	exports := make([]string, 0, len(imageTypeNames))
 	for _, name := range imageTypeNames {
 		imgType, ok := supportedImageTypes[name]
@@ -54,10 +54,12 @@ func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
 		}
 		if imgType.ISO {
 			ISOs++
+		} else {
+			Disks++
 		}
 		exports = append(exports, imgType.Export)
 	}
-	if ISOs != len(imageTypeNames) {
+	if ISOs > 0 && Disks > 0 {
 		return nil, fmt.Errorf("cannot mix ISO/disk images in request %v", imageTypeNames)
 	}
 
