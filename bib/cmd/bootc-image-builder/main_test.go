@@ -158,7 +158,7 @@ func TestManifestGenerationEmptyConfig(t *testing.T) {
 			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(t, err)
 			config.ImageTypes = it
-			_, err = main.Manifest(&config)
+			_, err = config.Manifest()
 			assert.Equal(t, err, tc.err)
 		})
 	}
@@ -191,7 +191,7 @@ func TestManifestGenerationUserConfig(t *testing.T) {
 			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(t, err)
 			config.ImageTypes = it
-			_, err = main.Manifest(&config)
+			_, err = config.Manifest()
 			assert.NoError(t, err)
 		})
 	}
@@ -420,7 +420,7 @@ func TestManifestSerialization(t *testing.T) {
 			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(err)
 			config.ImageTypes = it
-			mf, err := main.Manifest(&config)
+			mf, err := config.Manifest()
 			assert.NoError(err) // this isn't the error we're testing for
 
 			if tc.err != nil {
@@ -442,7 +442,7 @@ func TestManifestSerialization(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*userConfig)
 			config.ImageTypes, _ = main.NewImageTypes([]string{"iso"})
-			manifest, err := main.Manifest(&config)
+			manifest, err := config.Manifest()
 			assert.NoError(err) // this isn't the error we're testing for
 
 			expError := "package \"kernel\" not found in the PackageSpec list"

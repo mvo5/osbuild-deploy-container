@@ -66,7 +66,7 @@ type ManifestConfig struct {
 	RootFSType string
 }
 
-func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
+func (c *ManifestConfig) Manifest() (*manifest.Manifest, error) {
 	rng := createRand()
 
 	if c.ImageTypes.BuildsISO() {

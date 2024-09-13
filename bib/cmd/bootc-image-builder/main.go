@@ -102,7 +102,7 @@ func getContainerSize(imgref string) (uint64, error) {
 }
 
 func makeManifest(c *ManifestConfig, cacheRoot string) (manifest.OSBuildManifest, map[string][]rpmmd.RepoConfig, error) {
-	manifest, err := Manifest(c)
+	manifest, err := c.Manifest()
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot get manifest: %w", err)
 	}
