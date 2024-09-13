@@ -155,9 +155,9 @@ func TestManifestGenerationEmptyConfig(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			br, err := main.NewBuildRequest(tc.imageTypes)
+			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(t, err)
-			config.BuildReq = br
+			config.ImageTypes = it
 			_, err = main.Manifest(&config)
 			assert.Equal(t, err, tc.err)
 		})
@@ -188,9 +188,9 @@ func TestManifestGenerationUserConfig(t *testing.T) {
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
 			config := main.ManifestConfig(*tc.config)
-			br, err := main.NewBuildRequest(tc.imageTypes)
+			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(t, err)
-			config.BuildReq = br
+			config.ImageTypes = it
 			_, err = main.Manifest(&config)
 			assert.NoError(t, err)
 		})
@@ -417,9 +417,9 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*tc.config)
-			br, err := main.NewBuildRequest(tc.imageTypes)
+			it, err := main.NewImageTypes(tc.imageTypes)
 			assert.NoError(err)
-			config.BuildReq = br
+			config.ImageTypes = it
 			mf, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 
@@ -441,7 +441,7 @@ func TestManifestSerialization(t *testing.T) {
 		t.Run("iso-nopkgs", func(t *testing.T) {
 			assert := assert.New(t)
 			config := main.ManifestConfig(*userConfig)
-			config.BuildReq, _ = main.NewBuildRequest([]string{"iso"})
+			config.ImageTypes, _ = main.NewImageTypes([]string{"iso"})
 			manifest, err := main.Manifest(&config)
 			assert.NoError(err) // this isn't the error we're testing for
 
@@ -573,11 +573,11 @@ func TestBuildRequest(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			br, err := main.NewBuildRequest(tc.imageTypes)
+			it, err := main.NewImageTypes(tc.imageTypes)
 			if tc.err != nil {
 				assert.Equal(t, err, tc.err)
 			} else {
-				assert.Equal(t, br.ISO, tc.expectISO)
+				assert.Equal(t, it.BuildsISO(), tc.expectISO)
 				assert.NoError(t, err)
 			}
 		})

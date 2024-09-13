@@ -40,8 +40,8 @@ type ManifestConfig struct {
 	// User requeted build config (e.g. blueprints)
 	Config *buildconfig.BuildConfig
 
-	// User requested Exports and disk/ISO
-	BuildReq *BuildRequest
+	// The image types the user requested
+	ImageTypes ImageTypes
 
 	// CPU architecture of the image
 	Architecture arch.Arch
@@ -69,7 +69,7 @@ type ManifestConfig struct {
 func Manifest(c *ManifestConfig) (*manifest.Manifest, error) {
 	rng := createRand()
 
-	if c.BuildReq.ISO {
+	if c.ImageTypes.BuildsISO() {
 		return manifestForISO(c, rng)
 	}
 	return manifestForDiskImage(c, rng)

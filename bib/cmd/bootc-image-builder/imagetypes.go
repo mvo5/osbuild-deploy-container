@@ -32,21 +32,14 @@ func allImageTypesString() string {
 	return strings.Join(keys, ", ")
 }
 
-type BuildRequest struct {
-	Exports []string
-	ISO     bool
+type ImageTypes []string
 
-	// XXX does not quite fit
-	Manifest []byte
-}
-
-func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
+func NewImageTypes(imageTypeNames []string) (ImageTypes, error) {
 	if len(imageTypeNames) == 0 {
 		return nil, fmt.Errorf("cannot use an empty array as a build request")
 	}
 
 	var ISOs, disks int
-	exports := make([]string, 0, len(imageTypeNames))
 	for _, name := range imageTypeNames {
 		imgType, ok := supportedImageTypes[name]
 		if !ok {
@@ -57,14 +50,26 @@ func NewBuildRequest(imageTypeNames []string) (*BuildRequest, error) {
 		} else {
 			disks++
 		}
-		exports = append(exports, imgType.Export)
 	}
 	if ISOs > 0 && disks > 0 {
 		return nil, fmt.Errorf("cannot mix ISO/disk images in request %v", imageTypeNames)
 	}
 
-	return &BuildRequest{
-		Exports: exports,
-		ISO:     (ISOs > 0),
-	}, nil
+	return ImageTypes(imageTypeNames), nil
+}
+
+func (it ImageTypes) Exports() []string {
+	exports := make([]string, 0, len(it))
+	// XXX: this assumes we have validated
+	for _, name := range it {
+		imgType := supportedImageTypes[name]
+		exports = append(exports, imgType.Export)
+	}
+
+	return exports
+}
+
+func (it ImageTypes) BuildsISO() bool {
+	// XXX: this assumes we have validated
+	return supportedImageTypes[it[0]].ISO
 }
