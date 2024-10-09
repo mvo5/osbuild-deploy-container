@@ -19,13 +19,13 @@ import (
 	"github.com/osbuild/images/pkg/arch"
 	"github.com/osbuild/images/pkg/cloud/awscloud"
 	"github.com/osbuild/images/pkg/container"
-	"github.com/osbuild/images/pkg/dnfjson"
 	"github.com/osbuild/images/pkg/manifest"
 	"github.com/osbuild/images/pkg/osbuild"
 	"github.com/osbuild/images/pkg/rpmmd"
 
 	"github.com/osbuild/bootc-image-builder/bib/internal/buildconfig"
 	podman_container "github.com/osbuild/bootc-image-builder/bib/internal/container"
+	"github.com/osbuild/bootc-image-builder/bib/internal/dnf"
 	"github.com/osbuild/bootc-image-builder/bib/internal/imagetypes"
 	"github.com/osbuild/bootc-image-builder/bib/internal/setup"
 	"github.com/osbuild/bootc-image-builder/bib/internal/source"
@@ -109,15 +109,7 @@ func makeManifest(c *ManifestConfig, cacheRoot string) (manifest.OSBuildManifest
 	}
 
 	// depsolve packages
-	// XXX: put into a dnf module
-	solver := dnfjson.NewSolver(
-		c.SourceInfo.OSRelease.PlatformID,
-		c.SourceInfo.OSRelease.VersionID,
-		c.Architecture.String(),
-		fmt.Sprintf("%s-%s", c.SourceInfo.OSRelease.ID, c.SourceInfo.OSRelease.VersionID),
-		cacheRoot)
-	solver.SetDNFJSONPath(c.DepsolverCmd[0], c.DepsolverCmd[1:]...)
-	solver.SetRootDir("/")
+	solver := dnf.NewContainerSolver(cacheRoot, c.Architecture, c.SourceInfo, c.DepsolverCmd)
 	depsolvedSets := make(map[string][]rpmmd.PackageSpec)
 	depsolvedRepos := make(map[string][]rpmmd.RepoConfig)
 	for name, pkgSet := range manifest.GetPackageSetChains() {
@@ -293,7 +285,7 @@ func manifestFromCobra(cmd *cobra.Command, args []string) ([]byte, *mTLSConfig, 
 	if err := container.InitDNF(); err != nil {
 		return nil, nil, err
 	}
-	depSolverCmd, err := container.InitDepsolveDNF()
+	depSolverCmd, err := container.InitDepSolveDNF()
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot prepare depsolve in the container: %w", err)
 	}

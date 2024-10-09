@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/osbuild/images/pkg/dnfjson"
+	"github.com/osbuild/images/pkg/arch"
 	"github.com/osbuild/images/pkg/rpmmd"
 
+	"github.com/osbuild/bootc-image-builder/bib/internal/dnf"
 	"github.com/osbuild/bootc-image-builder/bib/internal/source"
 )
 
@@ -255,14 +256,7 @@ func TestDNFJsonWorkWithSubscribedContent(t *testing.T) {
 
 	sourceInfo, err := source.LoadInfo(cnt.Root())
 	require.NoError(t, err)
-	solver := dnfjson.NewSolver(
-		sourceInfo.OSRelease.PlatformID,
-		sourceInfo.OSRelease.VersionID,
-		"x86_64",
-		fmt.Sprintf("%s-%s", sourceInfo.OSRelease.ID, sourceInfo.OSRelease.VersionID),
-		cacheRoot)
-	solver.SetDNFJSONPath(depsolverCmd[0], depsolverCmd[1:]...)
-	solver.SetRootDir("/")
+	solver := dnf.NewContainerSolver(cacheRoot, arch.ARCH_X86_64, sourceInfo, depsolverCmd)
 	res, err := solver.Depsolve([]rpmmd.PackageSet{
 		{
 			Include: []string{"coreutils"},
