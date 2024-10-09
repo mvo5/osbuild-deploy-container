@@ -1,6 +1,8 @@
 import base64
+import glob
 import hashlib
 import json
+import os
 import pathlib
 import platform
 import subprocess
@@ -163,11 +165,11 @@ def test_manifest_rootfs_respected(build_container, tc):
         "manifest", f"{tc.container_ref}",
     ])
     rootfs_type = find_rootfs_type_from(output)
-    match tc.container_ref:
-        case "quay.io/centos-bootc/centos-bootc:stream9":
-            assert rootfs_type == "xfs"
-        case _:
-            pytest.fail(f"unknown container_ref {tc.container_ref} please update test")
+    # this runs on centos9 so no "match"
+    if tc.container_ref =="quay.io/centos-bootc/centos-bootc:stream9":
+        assert rootfs_type == "xfs"
+    else:
+        pytest.fail(f"unknown container_ref {tc.container_ref} please update test")
 
 
 def test_manifest_rootfs_override(build_container):
@@ -518,3 +520,45 @@ def test_manifest_fs_customizations_xarch(tmp_path, build_container, fscustomiza
 
     # cross-arch builds only support ext4 (for now)
     assert_fs_customizations(fscustomizations, "ext4", output)
+
+
+@pytest.fixture(name="subscribed_machine", scope="session")
+def subscribe_machine_fixture():
+    if not testutil.has_executable("subscription-manager"):
+        pytest.skip("no subscription-manager found")
+        return False
+    rhsm_org = os.environ.get("RHSM_ORG")
+    rhsm_activation_key = os.environ.get("RHSM_ACTIVATION_KEY")
+    if not rhsm_org or not rhsm_activation_key:
+        pytest.skip("no RHSM_{ORG,ACTIVATION_KEY} environment variables found")
+        return False
+
+    # already subscribed
+    if not (os.path.exists("/etc/pki/entitlement/") and glob.glob("/etc/pki/entitlement/*.pem")):
+        subprocess.check_call([
+            "subscription-manager", "register",
+            "--org", rhsm_org,
+            "--activationkey", rhsm_activation_key,
+        ])
+    # subscribed
+    yield
+
+    # cleanup
+    subprocess.check_call(["subscription-manager", "unregister"])
+    return True
+
+
+def test_manifest_can_access_subscribed_content(tmp_path, build_container, subscribed_machine):
+    # this container requires subscribed content
+    container_ref = "registry.redhat.io/rhel9/rhel9:latest"
+
+    output = subprocess.check_output([
+        *testutil.podman_run_common,
+        "-v", f"{tmp_path}:/output",
+        build_container,
+        "manifest",
+        "--type=anaconda-iso", container_ref,
+    ])
+    manifest = json.loads(output)
+    for curl_item in manifest["sources"]["org.osbuild.curl"]["items"].values():
+        assert curl_item["url"].startswith("https://cdn.redhat.com/")
