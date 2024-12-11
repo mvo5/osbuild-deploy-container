@@ -40,7 +40,15 @@ type ProgressBar interface {
 // New creates a new progressbar based on the requested type
 func New(typ string) (ProgressBar, error) {
 	switch typ {
-	case "", "plain":
+	case "":
+		// auto-select
+		if f, ok := osStderr.(*os.File); ok {
+			if isatty.IsTerminal(f.Fd()) {
+				return NewTermProgressBar()
+			}
+		}
+		return NewPlainProgressBar()
+	case "plain":
 		return NewPlainProgressBar()
 	case "term":
 		return NewTermProgressBar()

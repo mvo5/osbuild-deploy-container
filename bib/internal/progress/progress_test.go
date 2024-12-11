@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/osbuild/bootc-image-builder/bib/internal/progress"
 )
@@ -24,6 +23,7 @@ func TestProgressNew(t *testing.T) {
 		{"term", &progress.TermProgressBar{}, ""},
 		{"debug", &progress.DebugProgressBar{}, ""},
 		{"plain", &progress.PlainProgressBar{}, ""},
+		// unknown progress type
 		{"bad", nil, `unknown progress type: "bad"`},
 	} {
 		pb, err := progress.New(tc.typ)
@@ -34,6 +34,19 @@ func TestProgressNew(t *testing.T) {
 			assert.EqualError(t, err, tc.expectedErr)
 		}
 	}
+}
+
+func TestProgressNewAutoSelect(t *testing.T) {
+	var buf bytes.Buffer
+	restore := progress.MockOsStderr(&buf)
+	defer restore()
+
+	// XXX: test auto-select terminal case by mocking osStderr via
+	// terminal
+	pb, err := progress.New("")
+	assert.NoError(t, err)
+	expected := &progress.PlainProgressBar{}
+	assert.Equal(t, reflect.TypeOf(pb), reflect.TypeOf(expected))
 }
 
 func TestPlainProgress(t *testing.T) {
