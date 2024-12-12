@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cheggaaa/pb/v3"
 	"github.com/sirupsen/logrus"
 
 	"github.com/osbuild/images/pkg/osbuild"
@@ -51,16 +52,11 @@ func New(typ string) (ProgressBar, error) {
 }
 
 type termProgressBar struct {
-	// the first line is the spinner
-	spinnerMsg string
-	spinnerPos int
+	spinnerPb   *pb.ProgressBar
+	msgPb       *pb.ProgressBar
+	subLevelPbs []*pb.ProgressBar
+
 	shutdownCh chan interface{}
-
-	// progress/subprocess
-	subProgress []osbuild.Progress
-
-	// last line is always the last message
-	msg string
 
 	out io.Writer
 }
@@ -71,6 +67,10 @@ func NewTermProgressBar() (ProgressBar, error) {
 	ppb := &termProgressBar{
 		out: osStderr,
 	}
+	ppb.spinnerPb = pb.New(0)
+	ppb.spinnerPb.SetTemplate(`[{{ (cycle . "|" "/" "-" "\\") }}] {{ string . "spinnerMsg" }}`)
+	ppb.msgPb = pb.New(0)
+	ppb.msgPb.SetTemplate(`Message: {{ string . "msg" }}`)
 	return ppb, nil
 }
 
@@ -78,19 +78,18 @@ func (ppb *termProgressBar) SetProgress(subLevel int, msg string, done int, tota
 	// auto-add as needed, requires sublevels to get added in order
 	// i.e. adding 0 and then 2 will fail
 	switch {
-	case subLevel == len(ppb.subProgress):
-		ppb.subProgress = append(ppb.subProgress, osbuild.Progress{
-			Done:    done,
-			Total:   total,
-			Message: msg,
-		})
-	case subLevel > len(ppb.subProgress):
-		return fmt.Errorf("subprogress added out of order, have %v sublevels but want level %v", len(ppb.subProgress), subLevel)
+	case subLevel == len(ppb.subLevelPbs):
+		apb := pb.New(0)
+		ppb.subLevelPbs = append(ppb.subLevelPbs, apb)
+		progressBarTmpl := `[{{ counters . }}] {{ string . "prefix" }} {{ bar .}} {{ percent . }}`
+		apb.SetTemplateString(progressBarTmpl)
+	case subLevel > len(ppb.subLevelPbs):
+		return fmt.Errorf("sublevel added out of order, have %v sublevels but want level %v", len(ppb.subLevelPbs), subLevel)
 	}
-	apb := &ppb.subProgress[subLevel]
-	apb.Done = done + 1
-	apb.Total = total + 1
-	apb.Message = msg
+	apb := ppb.subLevelPbs[subLevel]
+	apb.SetTotal(int64(total) + 1)
+	apb.SetCurrent(int64(done) + 1)
+	apb.Set("prefix", msg)
 	return nil
 }
 
@@ -104,18 +103,18 @@ func shorten(msg string) string {
 }
 
 func (ppb *termProgressBar) SetPulseMsg(msg string, args ...interface{}) {
-	ppb.spinnerMsg = shorten(fmt.Sprintf(msg, args...))
+	ppb.spinnerPb.Set("spinnerMsg", shorten(fmt.Sprintf(msg, args...)))
 }
 
 func (ppb *termProgressBar) SetMessage(msg string, args ...interface{}) {
-	ppb.msg = shorten(fmt.Sprintf(msg, args...))
+	ppb.msgPb.Set("msg", shorten(fmt.Sprintf(msg, args...)))
 }
 
 var (
-	ESC        = "\x1b"
-	ERASE_LINE = ESC + "[2K"
-
-	SPINNER = []string{"|", "/", "-", "\\"}
+	ESC         = "\x1b"
+	ERASE_LINE  = ESC + "[2K"
+	CURSOR_HIDE = ESC + "[?25l"
+	CURSOR_SHOW = ESC + "[?25h"
 )
 
 func cursorUp(i int) string {
@@ -131,17 +130,14 @@ func (ppb *termProgressBar) render() {
 			// break
 		}
 		var renderedLines int
-		fmt.Fprintf(ppb.out, "%s[%s] %s\n", ERASE_LINE, SPINNER[ppb.spinnerPos], ppb.spinnerMsg)
+		fmt.Fprintf(ppb.out, "%s%s\n", ERASE_LINE, ppb.spinnerPb.String())
 		renderedLines++
-		for _, prog := range ppb.subProgress {
-			fmt.Fprintf(ppb.out, "%s[%d/%d] %s\n", ERASE_LINE, prog.Done, prog.Total, prog.Message)
+		for _, prog := range ppb.subLevelPbs {
+			fmt.Fprintf(ppb.out, "%s%s\n", ERASE_LINE, prog.String())
 			renderedLines++
 		}
-		if ppb.msg != "" {
-			fmt.Fprintf(ppb.out, "%sMessage: %s\n", ERASE_LINE, ppb.msg)
-			renderedLines++
-		}
-		ppb.spinnerPos = (ppb.spinnerPos + 1) % len(SPINNER)
+		fmt.Fprintf(ppb.out, "%s%s\n", ERASE_LINE, ppb.msgPb.String())
+		renderedLines++
 		fmt.Fprintf(ppb.out, cursorUp(renderedLines))
 	}
 }
@@ -151,6 +147,7 @@ func (ppb *termProgressBar) Start() error {
 	if ppb.shutdownCh != nil {
 		return nil
 	}
+	fmt.Fprintf(ppb.out, "%s", CURSOR_HIDE)
 	ppb.shutdownCh = make(chan interface{})
 	go ppb.render()
 
@@ -161,6 +158,9 @@ func (ppb *termProgressBar) Stop() (err error) {
 	if ppb.shutdownCh == nil {
 		return nil
 	}
+	fmt.Fprintf(ppb.out, "%s", CURSOR_SHOW)
+	// move cursor down again
+	fmt.Fprintf(ppb.out, strings.Repeat("\n", 2+len(ppb.subLevelPbs)))
 	close(ppb.shutdownCh)
 	ppb.shutdownCh = nil
 	return nil
