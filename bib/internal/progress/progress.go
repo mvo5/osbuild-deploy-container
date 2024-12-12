@@ -7,17 +7,15 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
-	"github.com/cheggaaa/pb/v3"
-	"github.com/mattn/go-isatty"
 	"github.com/sirupsen/logrus"
 
 	"github.com/osbuild/images/pkg/osbuild"
 )
 
 var (
-	osStderr         io.Writer = os.Stderr
-	isattyIsTerminal           = isatty.IsTerminal
+	osStderr io.Writer = os.Stderr
 )
 
 // ProgressBar is an interfacs for progress reporting when there is
@@ -40,15 +38,8 @@ type ProgressBar interface {
 // New creates a new progressbar based on the requested type
 func New(typ string) (ProgressBar, error) {
 	switch typ {
-	case "":
-		// auto-select
-		if f, ok := osStderr.(*os.File); ok {
-			if isatty.IsTerminal(f.Fd()) {
-				return NewTermProgressBar()
-			}
-		}
-		return NewPlainProgressBar()
-	case "plain":
+	// XXX: autoseelct based on TERM value?
+	case "", "plain":
 		return NewPlainProgressBar()
 	case "term":
 		return NewTermProgressBar()
@@ -60,32 +51,26 @@ func New(typ string) (ProgressBar, error) {
 }
 
 type termProgressBar struct {
-	spinnerPb   *pb.ProgressBar
-	msgPb       *pb.ProgressBar
-	subLevelPbs []*pb.ProgressBar
+	// the first line is the spinner
+	spinnerMsg string
+	spinnerPos int
+	shutdownCh chan interface{}
 
-	pool        *pb.Pool
-	poolStarted bool
+	// progress/subprocess
+	subProgress []osbuild.Progress
+
+	// last line is always the last message
+	msg string
+
+	out io.Writer
 }
 
 // NewProgressBar creates a new default pb3 based progressbar suitable for
 // most terminals.
 func NewTermProgressBar() (ProgressBar, error) {
-	f, ok := osStderr.(*os.File)
-	if !ok {
-		return nil, fmt.Errorf("cannot use %T as a terminal", f)
+	ppb := &termProgressBar{
+		out: osStderr,
 	}
-	if !isattyIsTerminal(f.Fd()) {
-		return nil, fmt.Errorf("cannot use term progress without a terminal")
-	}
-
-	ppb := &termProgressBar{}
-	ppb.spinnerPb = pb.New(0)
-	ppb.spinnerPb.SetTemplate(`[{{ (cycle . "|" "/" "-" "\\") }}] {{ string . "spinnerMsg" }}`)
-	ppb.msgPb = pb.New(0)
-	ppb.msgPb.SetTemplate(`Message: {{ string . "msg" }}`)
-	ppb.pool = pb.NewPool(ppb.spinnerPb, ppb.msgPb)
-	ppb.pool.Output = osStderr
 	return ppb, nil
 }
 
@@ -93,21 +78,19 @@ func (ppb *termProgressBar) SetProgress(subLevel int, msg string, done int, tota
 	// auto-add as needed, requires sublevels to get added in order
 	// i.e. adding 0 and then 2 will fail
 	switch {
-	case subLevel == len(ppb.subLevelPbs):
-		apb := pb.New(0)
-		ppb.subLevelPbs = append(ppb.subLevelPbs, apb)
-		progressBarTmpl := `[{{ counters . }}] {{ string . "prefix" }} {{ bar .}} {{ percent . }}`
-		apb.SetTemplateString(progressBarTmpl)
-		ppb.pool.Add(apb)
-	case subLevel > len(ppb.subLevelPbs):
-		return fmt.Errorf("sublevel added out of order, have %v sublevels but want level %v", len(ppb.subLevelPbs), subLevel)
+	case subLevel == len(ppb.subProgress):
+		ppb.subProgress = append(ppb.subProgress, osbuild.Progress{
+			Done:    done,
+			Total:   total,
+			Message: msg,
+		})
+	case subLevel > len(ppb.subProgress):
+		return fmt.Errorf("subprogress added out of order, have %v sublevels but want level %v", len(ppb.subProgress), subLevel)
 	}
-	apb := ppb.subLevelPbs[subLevel]
-	apb.SetTotal(int64(total) + 1)
-	apb.SetCurrent(int64(done) + 1)
-	if msg != "" {
-		apb.Set("prefix", msg)
-	}
+	apb := &ppb.subProgress[subLevel]
+	apb.Done = done + 1
+	apb.Total = total + 1
+	apb.Message = msg
 	return nil
 }
 
@@ -121,28 +104,66 @@ func shorten(msg string) string {
 }
 
 func (ppb *termProgressBar) SetPulseMsg(msg string, args ...interface{}) {
-	ppb.spinnerPb.Set("spinnerMsg", shorten(fmt.Sprintf(msg, args...)))
+	ppb.spinnerMsg = shorten(fmt.Sprintf(msg, args...))
 }
 
 func (ppb *termProgressBar) SetMessage(msg string, args ...interface{}) {
-	ppb.msgPb.Set("msg", shorten(fmt.Sprintf(msg, args...)))
+	ppb.msg = shorten(fmt.Sprintf(msg, args...))
+}
+
+var (
+	ESC        = "\x1b"
+	ERASE_LINE = ESC + "[2K"
+
+	SPINNER = []string{"|", "/", "-", "\\"}
+)
+
+func cursorUp(i int) string {
+	return fmt.Sprintf("%s[%dA", ESC, i)
+}
+
+func (ppb *termProgressBar) render() {
+	for {
+		select {
+		case <-ppb.shutdownCh:
+			return
+		case <-time.After(200 * time.Millisecond):
+			// break
+		}
+		var renderedLines int
+		fmt.Fprintf(ppb.out, "%s[%s] %s\n", ERASE_LINE, SPINNER[ppb.spinnerPos], ppb.spinnerMsg)
+		renderedLines++
+		for _, prog := range ppb.subProgress {
+			fmt.Fprintf(ppb.out, "%s[%d/%d] %s\n", ERASE_LINE, prog.Done, prog.Total, prog.Message)
+			renderedLines++
+		}
+		if ppb.msg != "" {
+			fmt.Fprintf(ppb.out, "%sMessage: %s\n", ERASE_LINE, ppb.msg)
+			renderedLines++
+		}
+		ppb.spinnerPos = (ppb.spinnerPos + 1) % len(SPINNER)
+		fmt.Fprintf(ppb.out, cursorUp(renderedLines))
+	}
 }
 
 func (ppb *termProgressBar) Start() error {
-	if err := ppb.pool.Start(); err != nil {
-		return fmt.Errorf("progress bar failed: %w", err)
+	// spinner already running
+	if ppb.shutdownCh != nil {
+		return nil
 	}
-	ppb.poolStarted = true
+	ppb.shutdownCh = make(chan interface{})
+	go ppb.render()
+
 	return nil
 }
 
 func (ppb *termProgressBar) Stop() (err error) {
-	// pb.Stop() will deadlock if it was not started before
-	if ppb.poolStarted {
-		err = ppb.pool.Stop()
+	if ppb.shutdownCh == nil {
+		return nil
 	}
-	ppb.poolStarted = false
-	return err
+	close(ppb.shutdownCh)
+	ppb.shutdownCh = nil
+	return nil
 }
 
 type plainProgressBar struct {

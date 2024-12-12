@@ -12,9 +12,6 @@ import (
 )
 
 func TestProgressNew(t *testing.T) {
-	restore := progress.MockIsattyIsTerminal(true)
-	defer restore()
-
 	for _, tc := range []struct {
 		typ         string
 		expected    interface{}
@@ -106,15 +103,4 @@ func TestDebugProgress(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Stop progressbar\n", buf.String())
 	buf.Reset()
-}
-
-func TestTermProgressNoTerm(t *testing.T) {
-	var buf bytes.Buffer
-	restore := progress.MockOsStderr(&buf)
-	defer restore()
-
-	// TODO: use something like "github.com/creack/pty" to create
-	// a real pty to test this for real
-	_, err := progress.NewTermProgressBar()
-	assert.EqualError(t, err, "cannot use *os.File as a terminal")
 }
