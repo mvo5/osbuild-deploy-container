@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -37,6 +38,23 @@ func (r *proxyReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
+func fakeUploadFromReader(r io.Reader, bucketName, keyName string) (*s3manager.UploadOutput, error) {
+	var buf [512]byte
+	for {
+		_, err := r.Read(buf[:])
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		// XXX: meh
+		time.Sleep(100)
+	}
+
+	return &s3manager.UploadOutput{}, nil
+}
+
 func doUpload(a AwsUploader, file *os.File, bucketName, keyName string, pbar progress.ProgressBar) (*s3manager.UploadOutput, error) {
 	var r io.Reader = file
 
@@ -51,6 +69,9 @@ func doUpload(a AwsUploader, file *os.File, bucketName, keyName string, pbar pro
 		r = &proxyReader{0, file, pbar, 0, st.Size()}
 	}
 
+	if env := os.Getenv("BIB_FAKE_AWS_UPLOAD"); env != "" {
+		return fakeUploadFromReader(r, bucketName, keyName)
+	}
 	return a.UploadFromReader(r, bucketName, keyName)
 }
 

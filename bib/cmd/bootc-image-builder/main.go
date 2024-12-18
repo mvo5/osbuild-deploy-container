@@ -349,6 +349,11 @@ func cmdManifest(cmd *cobra.Command, args []string) error {
 }
 
 func handleAWSFlags(cmd *cobra.Command) (upload bool, err error) {
+	// hack
+	if env := os.Getenv("BIB_FAKE_AWS_UPLOAD"); env != "" {
+		return true, nil
+	}
+
 	imgTypes, _ := cmd.Flags().GetStringArray("type")
 	region, _ := cmd.Flags().GetString("aws-region")
 	if region == "" {
