@@ -14,6 +14,7 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/sirupsen/logrus"
 
+	"github.com/osbuild/images/pkg/datasizes"
 	"github.com/osbuild/images/pkg/osbuild"
 )
 
@@ -319,6 +320,8 @@ type OSBuildOptions struct {
 
 	// BuildLog writes the osbuild output to the given writer
 	BuildLog io.Writer
+
+	CacheMaxSize int64
 }
 
 func writersForOSBuild(pb ProgressBar, opts *OSBuildOptions, internalBuildLog io.Writer) (osbuildStdout io.Writer, osbuildStderr io.Writer) {
@@ -377,12 +380,17 @@ func RunOSBuild(pb ProgressBar, manifest []byte, exports []string, opts *OSBuild
 	defer rp.Close()
 	defer wp.Close()
 
+	cacheMaxSize := int64(20 * datasizes.GiB)
+	if opts.CacheMaxSize != 0 {
+		cacheMaxSize = opts.CacheMaxSize
+	}
 	cmd := exec.Command(
 		osbuildCmd,
 		"--store", opts.StoreDir,
 		"--output-directory", opts.OutputDir,
 		"--monitor=JSONSeqMonitor",
 		"--monitor-fd=3",
+		fmt.Sprintf("--cache-max-size=%v", cacheMaxSize),
 		"-",
 	)
 	for _, export := range exports {
