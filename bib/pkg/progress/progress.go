@@ -69,22 +69,25 @@ type ProgressBar interface {
 
 var isattyIsTerminal = isatty.IsTerminal
 
+type Options struct {
+}
+
 // New creates a new progressbar based on the requested type
-func New(typ string) (ProgressBar, error) {
+func New(typ string, opts *Options) (ProgressBar, error) {
 	switch typ {
 	case "", "auto":
 		// autoselect based on if we are on an interactive
 		// terminal, use verbose progress for scripts
 		if isattyIsTerminal(os.Stdin.Fd()) {
-			return NewTerminalProgressBar()
+			return NewTerminalProgressBar(opts)
 		}
-		return NewVerboseProgressBar()
+		return NewVerboseProgressBar(opts)
 	case "verbose":
-		return NewVerboseProgressBar()
+		return NewVerboseProgressBar(opts)
 	case "term":
-		return NewTerminalProgressBar()
+		return NewTerminalProgressBar(opts)
 	case "debug":
-		return NewDebugProgressBar()
+		return NewDebugProgressBar(opts)
 	default:
 		return nil, fmt.Errorf("unknown progress type: %q", typ)
 	}
@@ -102,7 +105,7 @@ type terminalProgressBar struct {
 
 // NewTerminalProgressBar creates a new default pb3 based progressbar suitable for
 // most terminals.
-func NewTerminalProgressBar() (ProgressBar, error) {
+func NewTerminalProgressBar(opt *Options) (ProgressBar, error) {
 	b := &terminalProgressBar{
 		out: osStderr,
 	}
@@ -247,7 +250,7 @@ type verboseProgressBar struct {
 
 // NewVerboseProgressBar starts a new "verbose" progressbar that will just
 // prints message but does not show any progress.
-func NewVerboseProgressBar() (ProgressBar, error) {
+func NewVerboseProgressBar(opt *Options) (ProgressBar, error) {
 	b := &verboseProgressBar{w: osStderr}
 	return b, nil
 }
@@ -280,7 +283,7 @@ type debugProgressBar struct {
 // lower level osbuild/images message. It will never clear the screen
 // so "glitches/weird" messages from the lower-layers can be inspected
 // easier.
-func NewDebugProgressBar() (ProgressBar, error) {
+func NewDebugProgressBar(opt *Options) (ProgressBar, error) {
 	b := &debugProgressBar{w: osStderr}
 	return b, nil
 }

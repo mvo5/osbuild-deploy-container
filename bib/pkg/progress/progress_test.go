@@ -23,7 +23,7 @@ func TestProgressNew(t *testing.T) {
 		// unknown progress type
 		{"bad", nil, `unknown progress type: "bad"`},
 	} {
-		pb, err := progress.New(tc.typ)
+		pb, err := progress.New(tc.typ, nil)
 		if tc.expectedErr == "" {
 			assert.NoError(t, err)
 			assert.Equal(t, reflect.TypeOf(pb), reflect.TypeOf(tc.expected), fmt.Sprintf("[%v] %T not the expected %T", tc.typ, pb, tc.expected))
@@ -39,7 +39,7 @@ func TestVerboseProgress(t *testing.T) {
 	defer restore()
 
 	// verbose progress never generates progress output
-	pbar, err := progress.NewVerboseProgressBar()
+	pbar, err := progress.NewVerboseProgressBar(nil)
 	assert.NoError(t, err)
 	err = pbar.SetProgress(0, "set-progress", 1, 100)
 	assert.NoError(t, err)
@@ -65,7 +65,7 @@ func TestDebugProgress(t *testing.T) {
 	restore := progress.MockOsStderr(&buf)
 	defer restore()
 
-	pbar, err := progress.NewDebugProgressBar()
+	pbar, err := progress.NewDebugProgressBar(nil)
 	assert.NoError(t, err)
 	err = pbar.SetProgress(0, "set-progress-msg", 1, 100)
 	assert.NoError(t, err)
@@ -94,7 +94,7 @@ func TestTermProgress(t *testing.T) {
 	restore := progress.MockOsStderr(&buf)
 	defer restore()
 
-	pbar, err := progress.NewTerminalProgressBar()
+	pbar, err := progress.NewTerminalProgressBar(nil)
 	assert.NoError(t, err)
 
 	pbar.Start()
@@ -125,7 +125,7 @@ func TestProgressNewAutoselect(t *testing.T) {
 		})
 		defer restore()
 
-		pb, err := progress.New("auto")
+		pb, err := progress.New("auto", nil)
 		assert.NoError(t, err)
 		assert.Equal(t, reflect.TypeOf(pb), reflect.TypeOf(tc.expected), fmt.Sprintf("[%v] %T not the expected %T", tc.onTerm, pb, tc.expected))
 	}
