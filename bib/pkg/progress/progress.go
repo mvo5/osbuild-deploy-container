@@ -70,6 +70,14 @@ type ProgressBar interface {
 var isattyIsTerminal = isatty.IsTerminal
 
 type Options struct {
+	Output io.Writer
+}
+
+func (opts *Options) outputOr(dflt io.Writer) io.Writer {
+	if opts.Output != nil {
+		return opts.Output
+	}
+	return dflt
 }
 
 // New creates a new progressbar based on the requested type
@@ -105,9 +113,12 @@ type terminalProgressBar struct {
 
 // NewTerminalProgressBar creates a new default pb3 based progressbar suitable for
 // most terminals.
-func NewTerminalProgressBar(opt *Options) (ProgressBar, error) {
+func NewTerminalProgressBar(opts *Options) (ProgressBar, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
 	b := &terminalProgressBar{
-		out: osStderr,
+		out: opts.outputOr(osStderr),
 	}
 	b.spinnerPb = pb.New(0)
 	b.spinnerPb.SetTemplate(`[{{ (cycle . "|" "/" "-" "\\") }}] {{ string . "spinnerMsg" }}`)
@@ -250,8 +261,12 @@ type verboseProgressBar struct {
 
 // NewVerboseProgressBar starts a new "verbose" progressbar that will just
 // prints message but does not show any progress.
-func NewVerboseProgressBar(opt *Options) (ProgressBar, error) {
-	b := &verboseProgressBar{w: osStderr}
+func NewVerboseProgressBar(opts *Options) (ProgressBar, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	b := &verboseProgressBar{w: opts.outputOr(osStderr)}
 	return b, nil
 }
 
@@ -283,8 +298,12 @@ type debugProgressBar struct {
 // lower level osbuild/images message. It will never clear the screen
 // so "glitches/weird" messages from the lower-layers can be inspected
 // easier.
-func NewDebugProgressBar(opt *Options) (ProgressBar, error) {
-	b := &debugProgressBar{w: osStderr}
+func NewDebugProgressBar(opts *Options) (ProgressBar, error) {
+	if opts == nil {
+		opts = &Options{}
+	}
+
+	b := &debugProgressBar{w: opts.outputOr(osStderr)}
 	return b, nil
 }
 

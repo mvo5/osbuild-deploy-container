@@ -33,6 +33,23 @@ func TestProgressNew(t *testing.T) {
 	}
 }
 
+func TestProgressNewOpts(t *testing.T) {
+	for _, typ := range []string{"term", "debug", "verbose"} {
+		t.Run(typ, func(t *testing.T) {
+			var buf bytes.Buffer
+			opts := &progress.Options{
+				Output: &buf,
+			}
+			pb, err := progress.New(typ, opts)
+			assert.NoError(t, err)
+			pb.Start()
+			pb.SetMessagef("some-msg")
+			pb.Stop()
+			assert.Contains(t, buf.String(), "some-msg")
+		})
+	}
+}
+
 func TestVerboseProgress(t *testing.T) {
 	var buf bytes.Buffer
 	restore := progress.MockOsStderr(&buf)
