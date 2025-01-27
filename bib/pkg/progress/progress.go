@@ -311,8 +311,18 @@ func (b *debugProgressBar) SetProgress(subLevel int, msg string, done int, total
 	return nil
 }
 
+type OSBuildOptions struct {
+	StoreDir  string
+	OutputDir string
+	ExtraEnv  []string
+}
+
 // XXX: merge variant back into images/pkg/osbuild/osbuild-exec.go
-func RunOSBuild(pb ProgressBar, manifest []byte, store, outputDirectory string, exports, extraEnv []string) error {
+func RunOSBuild(pb ProgressBar, manifest []byte, exports []string, opts *OSBuildOptions) error {
+	if opts == nil {
+		opts = &OSBuildOptions{}
+	}
+
 	// To keep maximum compatibility keep the old behavior to run osbuild
 	// directly and show all messages unless we have a "real" progress bar.
 	//
@@ -322,9 +332,9 @@ func RunOSBuild(pb ProgressBar, manifest []byte, store, outputDirectory string, 
 	// just run with the new runOSBuildWithProgress() helper.
 	switch pb.(type) {
 	case *terminalProgressBar, *debugProgressBar:
-		return runOSBuildWithProgress(pb, manifest, store, outputDirectory, exports, extraEnv)
+		return runOSBuildWithProgress(pb, manifest, opts.StoreDir, opts.OutputDir, exports, opts.ExtraEnv)
 	default:
-		return runOSBuildNoProgress(pb, manifest, store, outputDirectory, exports, extraEnv)
+		return runOSBuildNoProgress(pb, manifest, opts.StoreDir, opts.OutputDir, exports, opts.ExtraEnv)
 	}
 }
 
