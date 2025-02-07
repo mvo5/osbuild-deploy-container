@@ -185,6 +185,10 @@ func TestRunOSBuildWithBuildlogTerm(t *testing.T) {
 echo osbuild-stdout-output
 >&2 echo osbuild-stderr-output
 
+# XXX: without the sleep this is racy as two different go routines poll
+# this does not matter (much) in practise because osbuild output and
+# stage output are using the syncedMultiWriter so output is not garbled
+sleep 0.1
 >&3 echo '{"message": "osbuild-stage-message"}'
 `))
 	defer restore()
@@ -237,4 +241,72 @@ echo osbuild-stdout-output
 osbuild-stderr-output
 `
 	assert.Equal(t, expectedOutput, buildLog.String())
+}
+
+func TestRunOSBuildWithBuildlogTermError(t *testing.T) {
+	restore := progress.MockOsbuildCmd(makeFakeOsbuild(t, `
+echo osbuild-stdout-output
+>&2 echo osbuild-stderr-output
+
+# XXX: without the sleep this is racy as two different go routines poll
+# this does not matter (much) in practise because osbuild output and
+# stage output are using the syncedMultiWriter so output is not garbled
+sleep 0.1
+>&3 echo bad-json
+`))
+	defer restore()
+
+	var fakeStdout, fakeStderr bytes.Buffer
+	restore = progress.MockOsStdout(&fakeStdout)
+	defer restore()
+	restore = progress.MockOsStderr(&fakeStderr)
+	defer restore()
+
+	pbar, err := progress.New("term")
+	assert.NoError(t, err)
+
+	var buildLog bytes.Buffer
+	opts := &progress.OSBuildOptions{
+		BuildLog: &buildLog,
+	}
+	err = progress.RunOSBuild(pbar, []byte(`{"fake":"manifest"}`), nil, opts)
+	assert.ErrorContains(t, err, `errors parsing osbuild status:
+cannot scan line "bad-json": invalid`)
+	expectedOutput := `osbuild-stdout-output
+osbuild-stderr-output
+`
+	assert.Equal(t, expectedOutput, buildLog.String())
+}
+
+func TestRunOSBuildWithBuildlogTermManyError(t *testing.T) {
+	restore := progress.MockOsbuildCmd(makeFakeOsbuild(t, `
+echo osbuild-stdout-output
+>&2 echo osbuild-stderr-output
+
+# XXX: without the sleep this is racy as two different go routines poll
+# this does not matter (much) in practise because osbuild output and
+# stage output are using the syncedMultiWriter so output is not garbled
+sleep 0.1
+for i in $(seq 100); do
+    >&3 echo bad-json-$i
+done
+`))
+	defer restore()
+
+	var fakeStdout, fakeStderr bytes.Buffer
+	restore = progress.MockOsStdout(&fakeStdout)
+	defer restore()
+	restore = progress.MockOsStderr(&fakeStderr)
+	defer restore()
+
+	pbar, err := progress.New("term")
+	assert.NoError(t, err)
+
+	var buildLog bytes.Buffer
+	opts := &progress.OSBuildOptions{
+		BuildLog: &buildLog,
+	}
+	err = progress.RunOSBuild(pbar, []byte(`{"fake":"manifest"}`), nil, opts)
+	assert.ErrorContains(t, err, `errors parsing osbuild status`)
+	assert.ErrorContains(t, err, `too many errors`)
 }

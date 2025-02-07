@@ -14,7 +14,7 @@ FROM registry.fedoraproject.org/fedora:41
 # Fast-track osbuild so we don't depend on the "slow" Fedora release process to implement new features in bib
 COPY ./group_osbuild-osbuild-fedora.repo /etc/yum.repos.d/
 COPY ./package-requires.txt .
-RUN grep -vE '^#' package-requires.txt | xargs dnf install -y && rm -f package-requires.txt && dnf clean all
+RUN grep -vE '^#' package-requires.txt  | xargs dnf install -y && rm -f package-requires.txt && dnf clean all
 COPY --from=builder /build/bin/* /usr/bin/
 COPY bib/data /usr/share/bootc-image-builder
 

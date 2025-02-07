@@ -440,14 +440,14 @@ func runOSBuildWithProgress(pb ProgressBar, manifest []byte, exports []string, o
 		return fmt.Errorf("error starting osbuild: %v", err)
 	}
 	wp.Close()
+	defer cmd.Process.Kill()
 
 	var tracesMsgs []string
 	var statusErrs []error
 	for {
 		st, err := osbuildStatus.Status()
 		if err != nil {
-			statusErrs = append(statusErrs, err)
-			continue
+			return err
 		}
 		if st == nil {
 			break
@@ -473,6 +473,9 @@ func runOSBuildWithProgress(pb ProgressBar, manifest []byte, exports []string, o
 		if st.Trace != "" {
 			tracesMsgs = append(tracesMsgs, st.Trace)
 			fmt.Fprintln(buildLog, st.Trace)
+			if len(tracesMsgs) > 100_000 && len(tracesMsgs)%10_000 == 0 {
+				println("len traces:", len(tracesMsgs))
+			}
 		}
 	}
 

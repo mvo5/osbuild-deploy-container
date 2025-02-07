@@ -7,9 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -473,10 +476,41 @@ func cmdBuild(cmd *cobra.Command, args []string) error {
 		osbuildEnv = append(osbuildEnv, envVars...)
 	}
 
+	buildLog, err := os.Create(filepath.Join(outputDir, "buildlog.txt"))
+	if err != nil {
+		return err
+	}
+	defer buildLog.Close()
+	fmt.Fprintf(buildLog, "build started %v", os.Getpid())
+
+	go func() {
+		i := 0
+		for {
+			writeProfile := func(i int) {
+				f, err := os.Create(fmt.Sprintf(filepath.Join(outputDir, "mem.prof.%v"), i))
+				if err != nil {
+					log.Fatal("could not create memory profile: ", err)
+				}
+				defer f.Close()
+				runtime.GC()
+				if err := pprof.WriteHeapProfile(f); err != nil {
+					log.Fatal("could not write memory profile: ", err)
+				}
+			}
+
+			writeProfile(i)
+			time.Sleep(1 * time.Second)
+			i++
+			i = i % 10
+		}
+	}()
+
 	osbuildOpts := progress.OSBuildOptions{
 		StoreDir:  osbuildStore,
 		OutputDir: outputDir,
 		ExtraEnv:  osbuildEnv,
+
+		BuildLog: buildLog,
 	}
 	if err = progress.RunOSBuild(pbar, mf, exports, &osbuildOpts); err != nil {
 		return fmt.Errorf("cannot run osbuild: %w", err)

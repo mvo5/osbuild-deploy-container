@@ -199,6 +199,8 @@ def maybe_create_disk_customizations(cfg, tc):
 # podman_run_common has the common prefix for the podman run invocations
 podman_run_common = [
     "podman", "run", "--rm",
+    "-t",
+    "--memory=8g", "--memory-swap=8g",
     "--privileged",
     "-v", "/var/lib/containers/storage:/var/lib/containers/storage",
     "--security-opt", "label=type:unconfined_t",
